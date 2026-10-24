@@ -26,29 +26,33 @@ export const P = {
   cost: 2, // per unit effort; open-access equilibrium S* = cost/(price·q) = 200
   villages: 8,
   entryRate: 0.15, // open-access effort response to profit
-  fixedQuota: 24, // total effort of a one-size rule written in a good year
+  maxEffort: 8, // per village
+  fixedCatch: 90, // a one-size catch limit written in a good year (MSY is 100 at full capacity)
+  pull: 0.2, // adaptive quota's pull toward half capacity
+  whim: 0.15, // spread of each season's cheat-or-not decision
   trustCouncil: 0.65,
   trustImposed: 0.45,
   repairOn: 0.12,
   repairOff: 0.03,
   resentment: 0.05, // per neighbour caught cheating
-  justice: 0.02, // per sanction seen applied
   sucker: 0.02, // per unseen cheater, felt by those who complied
   overruled: 0.03, // per season a trawler fishes under an outside licence
   outsiderEffort: 2,
   outsiderEntry: 0.25,
-  trawlerEvery: 14,
-  trawlerSeasons: 5,
-  trawlerEffort: 14,
+  maxOutsiders: 8,
+  trawlerEvery: 12,
+  trawlerSeasons: 3,
+  trawlerEffort: 10,
+  refugium: 2, // fish that drift in from upstream each season, so an empty lake can recover
   detectOn: 0.8,
   detectOff: 0.05,
   flatFine: 0.1,
   ladder: [0.15, 0.4, 0.8, 1.2], // graduated sanctions; the last rung also suspends
   suspension: 2,
   forgive: 4, // clean seasons to drop one strike
-  runoff: 0.006,
+  runoff: 0.02, // share of the gap to Kfloor lost each season
   recovery: 0.01,
-  Kfloor: 450,
+  Kfloor: 600, // capacity runoff erodes toward
   collapse: 0.02,
 };
 
@@ -92,9 +96,12 @@ export function step(state, sw) {
   const margin = P.price * P.q * s.S - P.cost; // profit per unit effort at the current stock
   const hasQuota = sw.fit || sw.council;
 
-  // 1. Effort.
-  const quota = sw.fit ? (P.r / (2 * P.q)) * Math.min(1, s.S / (s.K / 2)) : P.fixedQuota;
+  // 1. Effort. Quotas are in fish, not effort: a fixed effort limit would adapt to the stock on its own.
+  // Adaptive: expected regrowth, plus a pull toward half capacity. Fixed: one number written in a good year.
+  const regrowth = P.r * s.S * (1 - s.S / s.K);
+  const quota = sw.fit ? clamp(regrowth + P.pull * (s.S - s.K / 2), 0, 0.9 * s.S) : P.fixedCatch;
   const detect = sw.monitoring ? P.detectOn : P.detectOff;
+  const eMSY = P.r / (2 * P.q);
   for (const v of vs) {
     v.cheated = v.caught = false;
     if (v.suspended > 0) {
@@ -103,16 +110,17 @@ export function step(state, sw) {
       continue;
     }
     if (!hasQuota) {
-      v.effort = Math.max(0, v.effort + P.entryRate * margin * (0.5 + v.greed));
+      v.effort = clamp(v.effort + P.entryRate * margin * (0.5 + v.greed), 0, P.maxEffort);
       continue;
     }
-    const share = quota / vs.length;
+    // Fish the share only while it pays; cheating adds effort on top, even under a closure.
+    const share = margin > 0 ? quota / vs.length / (P.q * s.S) : 0;
     const fine = sw.sanctions ? P.ladder[Math.min(v.strikes, P.ladder.length - 1)] : P.flatFine;
-    v.cheated = margin > 0 && v.greed + 0.15 * gauss(s) > v.trust + detect * fine;
-    v.effort = share * (v.cheated ? 1 + v.greed : 1);
+    v.cheated = margin > 0 && v.greed + P.whim * gauss(s) > v.trust + detect * fine;
+    v.effort = Math.min(P.maxEffort, share + (v.cheated ? (v.greed * eMSY) / vs.length : 0));
   }
   if (!sw.boundaries) {
-    s.outsiders = Math.max(0, s.outsiders + P.outsiderEntry * margin - (margin < 0 ? 0.2 * s.outsiders : 0));
+    s.outsiders = clamp(s.outsiders + P.outsiderEntry * margin - (margin < 0 ? 0.2 * s.outsiders : 0), 0, P.maxOutsiders);
   } else s.outsiders = 0;
   if (!sw.autonomy && s.trawler === 0 && s.season > 0 && s.season % P.trawlerEvery === 0) {
     s.trawler = P.trawlerSeasons;
@@ -142,7 +150,9 @@ export function step(state, sw) {
   for (const v of cheaters) {
     if (rand(s) >= detect) continue;
     v.caught = true;
-    events.push({ type: "caught", village: vs.indexOf(v) });
+    // rung: index into P.ladder of the sanction applied (the top rung suspends), or -1 for the flat fine.
+    const rung = sw.sanctions ? Math.min(v.strikes, P.ladder.length - 1) : -1;
+    events.push({ type: "caught", village: vs.indexOf(v), rung });
     if (sw.sanctions) {
       v.strikes++;
       if (v.strikes >= P.ladder.length) {
@@ -161,7 +171,6 @@ export function step(state, sw) {
     const others = caughtCount - (v.caught ? 1 : 0);
     let dt = repair * (baseline - v.trust);
     dt -= others * P.resentment * (sw.mediation ? 0.3 : 1);
-    if (sw.sanctions) dt += others * P.justice;
     if (!v.cheated) dt -= unseen * P.sucker;
     if (trawling) dt -= P.overruled;
     v.trust = clamp(v.trust + dt);
@@ -170,10 +179,10 @@ export function step(state, sw) {
   // 4. Regrowth with good/bad years and depensation.
   const rt = P.r * Math.max(0.1, 1 + P.rNoise * gauss(s));
   const recruit = Math.min(1, s.S / (P.allee * s.K));
-  s.S = Math.max(0, s.S + rt * s.S * (1 - s.S / s.K) * recruit);
+  s.S = Math.max(0, s.S + rt * s.S * (1 - s.S / s.K) * recruit) + P.refugium;
 
   // 5. Watershed.
-  s.K = sw.nested ? Math.min(P.K0, s.K + P.recovery * P.K0) : Math.max(P.Kfloor, s.K * (1 - P.runoff));
+  s.K = sw.nested ? Math.min(P.K0, s.K + P.recovery * P.K0) : s.K - P.runoff * (s.K - P.Kfloor);
 
   s.season++;
   const collapsed = s.S < P.collapse * s.K;

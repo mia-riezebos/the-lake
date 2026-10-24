@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Lake</title>
+<style>
+  :root {
+    --fg: var(--foreground, #e9e7e2);
+    --bg: var(--background, #131514);
+    --mute: var(--muted-foreground, #9a9c96);
+    --line: var(--border, #2c302d);
+    --surface: var(--card, #1a1d1b);
+    --accent-c: var(--chart-1, #6cc4d8);
+    --warn: #ff6b5e;
+    --r: var(--radius, 10px);
+    --sans: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    --mono: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  }
+  html { color: var(--fg); background: var(--bg); font-family: var(--sans); }
+  body { margin: 0; }
+  .app { display: grid; gap: 14px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .thesis { margin: 0; color: var(--mute); font-size: 14px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
+  .stage { position: relative; border-radius: var(--r); overflow: hidden; background: #18201b; }
+  #lake { display: block; width: 100%; height: 340px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+  button {
+    font: 500 13px var(--sans); color: var(--fg); background: var(--surface);
+    border: 1px solid var(--line); border-radius: calc(var(--r) - 2px);
+    padding: 6px 11px; min-height: 32px; cursor: pointer;
+    transition: background-color 120ms ease-out, border-color 120ms ease-out;
+  }
+  button:hover { border-color: var(--mute); }
+  button:focus-visible, .switch input:focus-visible + .track { outline: 2px solid var(--accent-c); outline-offset: 2px; }
+  button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  button.restock { border-color: var(--warn); color: var(--warn); }
+  button[hidden] { display: none; }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; font-size: 13px; color: var(--mute); }
+  .stats div { display: flex; gap: 5px; }
+  .stats dt { margin: 0; }
+  .stats dd { margin: 0; color: var(--fg); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .log { list-style: none; margin: 0; padding: 0; font-size: 13px; line-height: 1.55; min-height: calc(3 * 1.55em); }
+  .log li { color: var(--mute); }
+  .log li:first-child { color: var(--fg); }
+  .log b { font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--mute); margin-right: 6px; }
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  legend { font-size: 13px; font-weight: 600; color: var(--mute); padding: 0; margin-bottom: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 6px; }
+  .switch {
+    display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 10px; align-items: start; align-content: start;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer;
+    transition: border-color 120ms ease-out, background-color 120ms ease-out;
+  }
+  .switch:hover { border-color: var(--mute); }
+  .switch:has(input:checked) { background: var(--surface); }
+  .switch .n { font-family: var(--mono); font-size: 12px; color: var(--mute); padding-top: 1px; }
+  .switch .t { font-size: 14px; font-weight: 600; }
+  .switch .d { grid-column: 2; font-size: 13px; color: var(--mute); line-height: 1.4; }
+  .switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .track {
+    grid-column: 3; grid-row: 1 / span 2; align-self: center;
+    width: 32px; height: 18px; border-radius: 9px; background: var(--line); position: relative;
+    transition: background-color 160ms ease-out;
+  }
+  .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--fg); transition: transform 160ms cubic-bezier(.3,.7,.4,1);
+  }
+  .switch input:checked + .track { background: var(--accent-c); }
+  .switch input:checked + .track::after { transform: translateX(14px); background: #0d1416; }
+  .chart-head { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--mute); margin-bottom: 6px; }
+  .chart-head h2 { font-size: 13px; font-weight: 600; margin: 0 auto 0 0; }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 16px; height: 0; border-top: 2px solid var(--accent-c); }
+  .key i.k { border-top: 1.5px dashed var(--mute); }
+  .key i.m { border-top: 1.5px dotted var(--mute); }
+  #chart { display: block; width: 100%; height: 130px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1>The Lake</h1>
+    <p class="thesis">Garrett Hardin said a shared lake gets fished to death. Elinor Ostrom went and looked at real ones, and found villages that had shared theirs for centuries. Eight villages fish this lake. You can't fish. You can only change the rules.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="lake" role="img" aria-label="A lake ringed by eight villages. Boats row out each season."></canvas>
+  </div>
+
+  <div class="bar">
+    <div class="buttons">
+      <button id="play" aria-pressed="false">Pause</button>
+      <button data-speed="1" aria-pressed="true">1×</button>
+      <button data-speed="3" aria-pressed="false">3×</button>
+      <button data-speed="10" aria-pressed="false">10×</button>
+      <button id="restock" class="restock" hidden>Restock the lake</button>
+    </div>
+    <dl class="stats">
+      <div><dt>Season</dt><dd id="st-season">0</dd></div>
+      <div><dt>Fish</dt><dd id="st-fish">0</dd></div>
+      <div><dt>Catch</dt><dd id="st-catch">0</dd></div>
+      <div><dt>Trust</dt><dd id="st-trust">0</dd></div>
+    </dl>
+  </div>
+
+  <ol class="log" id="log" aria-live="polite"></ol>
+
+  <fieldset>
+    <legend>Ostrom's eight design principles</legend>
+    <div class="buttons" style="margin-bottom: 8px">
+      <button data-preset="off">Hardin's lake: all off</button>
+      <button data-preset="on">Ostrom's lake: all on</button>
+    </div>
+    <div class="grid" id="switches"></div>
+  </fieldset>
+
+  <section>
+    <div class="chart-head">
+      <h2>Fish in the lake</h2>
+      <span class="key"><i></i>Fish</span>
+      <span class="key"><i class="k"></i>Capacity</span>
+      <span class="key"><i class="m"></i>Half capacity: the biggest catch it can sustain</span>
+    </div>
+    <canvas id="chart" role="img" aria-label="Fish stock over the last 200 seasons."></canvas>
+  </section>
+</main>
+
+<script type="module">
+// The Lake: a common-pool fishery under Ostrom's eight design principles.
+// Pure engine, no DOM. `step` advances one fishing season and returns a new state.
+
+/** The eight switches, keyed by short id, in Ostrom's order. */
+const PRINCIPLES = [
+  "boundaries",
+  "fit",
+  "council",
+  "monitoring",
+  "sanctions",
+  "mediation",
+  "autonomy",
+  "nested",
+];
+
+const ALL_ON = Object.fromEntries(PRINCIPLES.map((k) => [k, true]));
+const ALL_OFF = Object.fromEntries(PRINCIPLES.map((k) => [k, false]));
+
+const P = {
+  K0: 1000, // pristine carrying capacity
+  r: 0.4, // intrinsic growth per season
+  rNoise: 0.35, // environmental stochasticity: good and bad years
+  allee: 0.15, // below allee·K, recruitment fails proportionally (depensation)
+  q: 0.01, // catchability
+  price: 1,
+  cost: 2, // per unit effort; open-access equilibrium S* = cost/(price·q) = 200
+  villages: 8,
+  entryRate: 0.15, // open-access effort response to profit
+  maxEffort: 8, // per village
+  fixedCatch: 90, // a one-size catch limit written in a good year (MSY is 100 at full capacity)
+  pull: 0.2, // adaptive quota's pull toward half capacity
+  whim: 0.15, // spread of each season's cheat-or-not decision
+  trustCouncil: 0.65,
+  trustImposed: 0.45,
+  repairOn: 0.12,
+  repairOff: 0.03,
+  resentment: 0.05, // per neighbour caught cheating
+  sucker: 0.02, // per unseen cheater, felt by those who complied
+  overruled: 0.03, // per season a trawler fishes under an outside licence
+  outsiderEffort: 2,
+  outsiderEntry: 0.25,
+  maxOutsiders: 8,
+  trawlerEvery: 12,
+  trawlerSeasons: 3,
+  trawlerEffort: 10,
+  refugium: 2, // fish that drift in from upstream each season, so an empty lake can recover
+  detectOn: 0.8,
+  detectOff: 0.05,
+  flatFine: 0.1,
+  ladder: [0.15, 0.4, 0.8, 1.2], // graduated sanctions; the last rung also suspends
+  suspension: 2,
+  forgive: 4, // clean seasons to drop one strike
+  runoff: 0.02, // share of the gap to Kfloor lost each season
+  recovery: 0.01,
+  Kfloor: 600, // capacity runoff erodes toward
+  collapse: 0.02,
+};
+
+/** Seeded PRNG (mulberry32) whose state lives in the sim state, so `step` stays pure. */
+const rand = (s) => {
+  s.seed = (s.seed + 0x6d2b79f5) | 0;
+  let t = s.seed;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const gauss = (s) => Math.sqrt(-2 * Math.log(1 - rand(s))) * Math.cos(2 * Math.PI * rand(s));
+const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
+
+function createState(seed = 1) {
+  const s = { seed, season: 0, S: P.K0 * 0.8, K: P.K0, outsiders: 0, trawler: 0, collapsed: false, history: [] };
+  s.villages = Array.from({ length: P.villages }, (_, i) => ({
+    greed: 0.2 + (0.7 * i) / (P.villages - 1),
+    trust: 0.6,
+    effort: 2,
+    strikes: 0,
+    clean: 0,
+    suspended: 0,
+    cheated: false,
+    caught: false,
+    catch: 0,
+  }));
+  return s;
+}
+
+/** Restock an emptied lake without resetting its institutions or its people. */
+function restock(state) {
+  return { ...structuredClone(state), S: state.K * 0.5, collapsed: false };
+}
+
+/** Advance one season under the given switches. Returns a new state with `events` for the renderer. */
+function step(state, sw) {
+  const s = structuredClone(state);
+  const events = [];
+  const { villages: vs } = s;
+  const margin = P.price * P.q * s.S - P.cost; // profit per unit effort at the current stock
+  const hasQuota = sw.fit || sw.council;
+
+  // 1. Effort. Quotas are in fish, not effort: a fixed effort limit would adapt to the stock on its own.
+  // Adaptive: expected regrowth, plus a pull toward half capacity. Fixed: one number written in a good year.
+  const regrowth = P.r * s.S * (1 - s.S / s.K);
+  const quota = sw.fit ? clamp(regrowth + P.pull * (s.S - s.K / 2), 0, 0.9 * s.S) : P.fixedCatch;
+  const detect = sw.monitoring ? P.detectOn : P.detectOff;
+  const eMSY = P.r / (2 * P.q);
+  for (const v of vs) {
+    v.cheated = v.caught = false;
+    if (v.suspended > 0) {
+      v.suspended--;
+      v.effort = 0;
+      continue;
+    }
+    if (!hasQuota) {
+      v.effort = clamp(v.effort + P.entryRate * margin * (0.5 + v.greed), 0, P.maxEffort);
+      continue;
+    }
+    // Fish the share only while it pays; cheating adds effort on top, even under a closure.
+    const share = margin > 0 ? quota / vs.length / (P.q * s.S) : 0;
+    const fine = sw.sanctions ? P.ladder[Math.min(v.strikes, P.ladder.length - 1)] : P.flatFine;
+    v.cheated = margin > 0 && v.greed + P.whim * gauss(s) > v.trust + detect * fine;
+    v.effort = Math.min(P.maxEffort, share + (v.cheated ? (v.greed * eMSY) / vs.length : 0));
+  }
+  if (!sw.boundaries) {
+    s.outsiders = clamp(s.outsiders + P.outsiderEntry * margin - (margin < 0 ? 0.2 * s.outsiders : 0), 0, P.maxOutsiders);
+  } else s.outsiders = 0;
+  if (!sw.autonomy && s.trawler === 0 && s.season > 0 && s.season % P.trawlerEvery === 0) {
+    s.trawler = P.trawlerSeasons;
+    events.push({ type: "trawler" });
+  }
+  const trawling = s.trawler > 0 ? P.trawlerEffort : 0;
+  if (s.trawler > 0) s.trawler--;
+
+  // 2. Harvest, pro-rated so the catch never exceeds 90% of the stock.
+  const memberEffort = vs.reduce((a, v) => a + v.effort, 0);
+  const totalEffort = memberEffort + s.outsiders * P.outsiderEffort + trawling;
+  const wanted = P.q * totalEffort * s.S;
+  const caught = Math.min(wanted, 0.9 * s.S);
+  const perEffort = totalEffort > 0 ? caught / totalEffort : 0;
+  for (const v of vs) v.catch = v.effort * perEffort;
+  s.S -= caught;
+
+  // 3. Detection, sanctions, trust. A clean record slowly earns strikes back.
+  for (const v of vs) {
+    v.clean = v.cheated ? 0 : v.clean + 1;
+    if (v.clean >= P.forgive && v.strikes > 0) {
+      v.strikes--;
+      v.clean = 0;
+    }
+  }
+  const cheaters = vs.filter((v) => v.cheated);
+  for (const v of cheaters) {
+    if (rand(s) >= detect) continue;
+    v.caught = true;
+    // rung: index into P.ladder of the sanction applied (the top rung suspends), or -1 for the flat fine.
+    const rung = sw.sanctions ? Math.min(v.strikes, P.ladder.length - 1) : -1;
+    events.push({ type: "caught", village: vs.indexOf(v), rung });
+    if (sw.sanctions) {
+      v.strikes++;
+      if (v.strikes >= P.ladder.length) {
+        v.suspended = P.suspension;
+        v.strikes = 1;
+      }
+    }
+  }
+  const caughtCount = cheaters.filter((v) => v.caught).length;
+  const unseen = cheaters.length - caughtCount;
+  // Trust relaxes toward a baseline set by legitimacy (rules you helped make), and shocks push it around.
+  // Mediation both softens resentment and speeds repair.
+  const baseline = sw.council ? P.trustCouncil : P.trustImposed;
+  const repair = sw.mediation ? P.repairOn : P.repairOff;
+  for (const v of vs) {
+    const others = caughtCount - (v.caught ? 1 : 0);
+    let dt = repair * (baseline - v.trust);
+    dt -= others * P.resentment * (sw.mediation ? 0.3 : 1);
+    if (!v.cheated) dt -= unseen * P.sucker;
+    if (trawling) dt -= P.overruled;
+    v.trust = clamp(v.trust + dt);
+  }
+
+  // 4. Regrowth with good/bad years and depensation.
+  const rt = P.r * Math.max(0.1, 1 + P.rNoise * gauss(s));
+  const recruit = Math.min(1, s.S / (P.allee * s.K));
+  s.S = Math.max(0, s.S + rt * s.S * (1 - s.S / s.K) * recruit) + P.refugium;
+
+  // 5. Watershed.
+  s.K = sw.nested ? Math.min(P.K0, s.K + P.recovery * P.K0) : s.K - P.runoff * (s.K - P.Kfloor);
+
+  s.season++;
+  const collapsed = s.S < P.collapse * s.K;
+  if (collapsed && !s.collapsed) events.push({ type: "collapse" });
+  s.collapsed = collapsed;
+  s.history.push({ S: s.S, K: s.K, catch: caught, cheaters: cheaters.length, caught: caughtCount, outsiders: s.outsiders });
+  if (s.history.length > 400) s.history.shift();
+  s.events = events;
+  return s;
+}
+
+
+const NAMES = ["Alder", "Birch", "Cove", "Dunlin", "Eelmouth", "Fernhill", "Gull Rock", "Heron"];
+const COPY = {
+  boundaries: ["Clear boundaries", "Only member villages fish here."],
+  fit: ["Rules that fit", "The catch limit follows this year's fish count."],
+  council: ["Shared decisions", "Fishers write the rules together."],
+  monitoring: ["Monitoring", "Someone counts the catch."],
+  sanctions: ["Graduated sanctions", "A warning first, then fines that grow."],
+  mediation: ["Conflict resolution", "Disputes go to mediation, quickly and cheaply."],
+  autonomy: ["Right to organise", "No outside licence overrides local rules."],
+  nested: ["Nested governance", "Upstream farms answer to a watershed council."],
+};
+const RUNG = ["Warning.", "Fined.", "Fined heavily.", "Suspended for two seasons."];
+
+const $ = (id) => document.getElementById(id);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sw = { ...ALL_OFF };
+let state = createState(Math.floor(Math.random() * 1e9));
+let playing = !reduced, speed = 1, progress = 0;
+let plan = null; // where each boat rows this season
+const flashes = []; // caught-cheating rings
+const log = [];
+
+// ---------- controls ----------
+const grid = $("switches");
+PRINCIPLES.forEach((k, i) => {
+  const [title, desc] = COPY[k];
+  const label = document.createElement("label");
+  label.className = "switch";
+  label.innerHTML = `<span class="n">${i + 1}</span><span class="t">${title}</span>
+    <input type="checkbox" role="switch" data-k="${k}"><span class="track" aria-hidden="true"></span>
+    <span class="d">${desc}</span>`;
+  grid.append(label);
+});
+const inputs = [...grid.querySelectorAll("input")];
+inputs.forEach((el) => el.addEventListener("change", () => (sw[el.dataset.k] = el.checked)));
+const setAll = (on) => inputs.forEach((el) => (el.checked = sw[el.dataset.k] = on));
+document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => setAll(b.dataset.preset === "on")));
+
+const playBtn = $("play");
+const setPlaying = (p) => {
+  playing = p;
+  playBtn.textContent = p ? "Pause" : "Play";
+  playBtn.setAttribute("aria-pressed", String(!p));
+  wake();
+};
+playBtn.addEventListener("click", () => setPlaying(!playing));
+document.querySelectorAll("[data-speed]").forEach((b) =>
+  b.addEventListener("click", () => {
+    speed = +b.dataset.speed;
+    document.querySelectorAll("[data-speed]").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+    if (!playing) setPlaying(true);
+  }),
+);
+$("restock").addEventListener("click", () => {
+  state = restock(state);
+  say("The lake is restocked. The rules are whatever you left them.");
+  syncDom();
+});
+
+function say(text) {
+  log.unshift(`<b>${String(state.season).padStart(3, " ")}</b>${text}`);
+  log.length = Math.min(log.length, 3);
+  $("log").innerHTML = log.map((l) => `<li>${l}</li>`).join("");
+}
+
+function narrate(prev, s) {
+  for (const e of s.events) {
+    if (e.type === "caught") say(`${NAMES[e.village]} fished over the limit. ${e.rung < 0 ? "A token fine." : RUNG[e.rung]}`);
+    if (e.type === "trawler") say("The capital licenses a trawler on your lake.");
+    if (e.type === "collapse") say("The lake is empty. The fish are gone.");
+  }
+  if (prev.outsiders < 1 && s.outsiders >= 1) say("Boats from outside start fishing here.");
+  const quota = sw.fit || sw.council;
+  if (quota && !plan?.quota) say(sw.council ? "The villages meet and agree a catch limit." : "A catch limit is posted.");
+  if (!quota && plan?.quota) say("The catch limit is gone. Everyone fishes what they can.");
+}
+
+const fmt = (n) => Math.round(n).toLocaleString("en");
+function syncDom() {
+  const last = state.history.at(-1);
+  $("st-season").textContent = state.season;
+  $("st-fish").textContent = fmt(state.S);
+  $("st-catch").textContent = fmt(last?.catch ?? 0);
+  $("st-trust").textContent = `${Math.round((100 * state.villages.reduce((a, v) => a + v.trust, 0)) / state.villages.length)}%`;
+  $("restock").hidden = !state.collapsed;
+}
+
+// ---------- geometry ----------
+const lake = $("lake"), cx2 = lake.getContext("2d");
+const chart = $("chart"), ch2 = chart.getContext("2d");
+let W = 0, H = 0, CW = 0, CH = 0, geo;
+const shore = (a) => 1 + 0.07 * Math.sin(3 * a + 1.3) + 0.045 * Math.sin(5 * a + 0.4) + 0.025 * Math.sin(7 * a + 2.1);
+const at = (a, rho) => [geo.cx + geo.rx * rho * shore(a) * Math.cos(a), geo.cy + geo.ry * rho * shore(a) * Math.sin(a)];
+const villageAngle = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / NAMES.length + 0.2;
+
+function fit(canvas, ctx) {
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  const { width, height } = canvas.getBoundingClientRect();
+  canvas.width = Math.round(width * dpr);
+  canvas.height = Math.round(height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [width, height];
+}
+function resize() {
+  [W, H] = fit(lake, cx2);
+  [CW, CH] = fit(chart, ch2);
+  geo = { cx: W / 2, cy: H / 2 + 6, rx: Math.min(W * 0.33, H * 0.9), ry: H * 0.33 };
+  draw(performance.now());
+}
+new ResizeObserver(resize).observe(lake);
+
+// ---------- fish ----------
+const fish = [];
+const FISH_MAX = 170;
+function spawnFish() {
+  for (;;) {
+    const u = Math.random() * 2 - 1, v = Math.random() * 2 - 1;
+    if (Math.hypot(u, v) < 0.85 * shore(Math.atan2(v, u))) return { u, v, a: Math.random() * 6.28, ph: Math.random() * 6.28 };
+  }
+}
+function moveFish(f) {
+  if (reduced) return;
+  const nu = f.u + Math.cos(f.a) * 0.0035, nv = f.v + Math.sin(f.a) * 0.0035;
+  if (Math.hypot(nu, nv) > 0.85 * shore(Math.atan2(nv, nu))) f.a += 2 + Math.random();
+  else [f.u, f.v] = [nu, nv];
+  f.a += (Math.random() - 0.5) * 0.15;
+}
+
+// ---------- boats ----------
+function newPlan(s) {
+  const boats = s.villages.map((v, i) =>
+    v.effort > 0 ? { i, a: villageAngle(i), to: [villageAngle(i) + (Math.random() - 0.5) * 0.9, 0.3 + Math.random() * 0.4], size: Math.sqrt(v.effort), outsider: false } : null,
+  ).filter(Boolean);
+  const n = Math.min(16, Math.round(s.outsiders));
+  for (let k = 0; k < n; k++) {
+    const a = Math.random() * Math.PI * 2;
+    boats.push({ a, to: [a + (Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 0.5], size: 1.3, outsider: true });
+  }
+  return { boats, trawler: s.trawler > 0 || s.events.some((e) => e.type === "trawler"), quota: sw.fit || sw.council };
+}
+// Rows out, fishes, rows home: position along the season.
+function boatPos(b, p) {
+  const t = p < 0.4 ? ease(p / 0.4) : p < 0.6 ? 1 : 1 - ease((p - 0.6) / 0.4);
+  const [x0, y0] = at(b.a, 1.0), [x1, y1] = at(b.to[0], b.to[1]);
+  return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, Math.atan2(y1 - y0, x1 - x0) + (p >= 0.6 ? Math.PI : 0)];
+}
+const ease = (t) => t * t * (3 - 2 * t);
+
+function advance() {
+  const prev = state;
+  state = step(state, sw);
+  narrate(prev, state);
+  plan = newPlan(state);
+  for (const e of state.events) if (e.type === "caught") flashes.push({ i: e.village, t0: performance.now() });
+  syncDom();
+}
+
+// ---------- drawing ----------
+const mix = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
+const rgb = (c, al = 1) => `rgba(${c[0]},${c[1]},${c[2]},${al})`;
+function lakePath(rho) {
+  cx2.beginPath();
+  for (let k = 0; k <= 96; k++) {
+    const [x, y] = at((k / 96) * Math.PI * 2, rho);
+    k ? cx2.lineTo(x, y) : cx2.moveTo(x, y);
+  }
+  cx2.closePath();
+}
+
+function draw(now) {
+  if (!geo) return;
+  const health = Math.min(1, state.S / (state.K * 0.5));
+  const g = cx2.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, W * 0.7);
+  g.addColorStop(0, "#26342b");
+  g.addColorStop(1, "#141b17");
+  cx2.fillStyle = g;
+  cx2.fillRect(0, 0, W, H);
+
+  lakePath(1.06);
+  cx2.fillStyle = "#3a4535";
+  cx2.fill();
+  lakePath(1);
+  const deep = mix([90, 88, 80], [24, 86, 104], health), edge = mix([70, 68, 62], [22, 62, 78], health);
+  const wg = cx2.createRadialGradient(geo.cx, geo.cy, 5, geo.cx, geo.cy, geo.rx);
+  wg.addColorStop(0, rgb(deep));
+  wg.addColorStop(1, rgb(edge));
+  cx2.fillStyle = wg;
+  cx2.fill();
+
+  // fish
+  const target = Math.round((FISH_MAX * state.S) / P.K0);
+  if (fish.length < target) fish.push(spawnFish());
+  if (fish.length > target) fish.splice(0, Math.max(1, Math.ceil((fish.length - target) / 12)));
+  for (const f of fish) {
+    moveFish(f);
+    const x = geo.cx + geo.rx * f.u, y = geo.cy + geo.ry * f.v;
+    const tail = reduced ? 0 : Math.sin(now / 120 + f.ph) * 0.5;
+    cx2.save();
+    cx2.translate(x, y);
+    cx2.rotate(f.a);
+    cx2.fillStyle = `rgba(206,236,232,${0.35 + 0.4 * Math.sin(now / 400 + f.ph) ** 2})`;
+    cx2.beginPath();
+    cx2.ellipse(0, 0, 3.6, 1.4, 0, 0, Math.PI * 2);
+    cx2.moveTo(-2.6, 0);
+    cx2.lineTo(-6, -2 + tail);
+    cx2.lineTo(-6, 2 + tail);
+    cx2.fill();
+    cx2.restore();
+  }
+
+  // boats, their nets while they fish, and the trawler
+  const p = reduced ? 0.5 : progress;
+  if (plan) {
+    for (const b of plan.boats) {
+      const [x, y, h] = boatPos(b, p);
+      if (p > 0.38 && p < 0.7 && !reduced) {
+        const t = (p - 0.38) / 0.32;
+        cx2.strokeStyle = `rgba(230,240,236,${0.35 * (1 - t)})`;
+        cx2.lineWidth = 1;
+        cx2.beginPath();
+        cx2.arc(x, y, 4 + 14 * t * b.size, 0, Math.PI * 2);
+        cx2.stroke();
+      }
+      drawBoat(x, y, h, 7 + 3 * b.size, b.outsider ? "#e59ac2" : "#efe4cc");
+    }
+    if (plan.trawler) {
+      const tx = geo.cx - geo.rx * 0.8 + geo.rx * 1.6 * p, ty = geo.cy + geo.ry * 0.1;
+      cx2.strokeStyle = "rgba(230,240,240,0.25)";
+      cx2.lineWidth = 3;
+      cx2.beginPath();
+      cx2.moveTo(geo.cx - geo.rx * 0.8, ty);
+      cx2.lineTo(tx, ty);
+      cx2.stroke();
+      drawBoat(tx, ty, 0, 22, "#2a2a2a", "#ffd166");
+    }
+  }
+
+  // villages: hut, lantern brightness = trust
+  cx2.font = `500 11px ${getComputedStyle(document.body).fontFamily}`;
+  cx2.textAlign = "center";
+  state.villages.forEach((v, i) => {
+    const a = villageAngle(i);
+    const [x, y] = at(a, 1.2);
+    const lg = cx2.createRadialGradient(x, y, 0, x, y, 18);
+    lg.addColorStop(0, `rgba(255,198,107,${0.15 + 0.6 * v.trust})`);
+    lg.addColorStop(1, "rgba(255,198,107,0)");
+    cx2.fillStyle = lg;
+    cx2.fillRect(x - 18, y - 18, 36, 36);
+    cx2.fillStyle = v.suspended ? "#55524a" : "#d9cdb0";
+    cx2.fillRect(x - 4, y - 2, 8, 6);
+    cx2.beginPath();
+    cx2.moveTo(x - 6, y - 2);
+    cx2.lineTo(x, y - 8);
+    cx2.lineTo(x + 6, y - 2);
+    cx2.fill();
+    cx2.fillStyle = "rgba(233,231,226,0.75)";
+    const below = Math.sin(a) > -0.2;
+    cx2.fillText(NAMES[i], x, below ? y + 18 : y - 13);
+  });
+
+  // caught-cheating rings
+  for (let k = flashes.length - 1; k >= 0; k--) {
+    const f = flashes[k], t = (now - f.t0) / 1100;
+    if (t > 1) {
+      flashes.splice(k, 1);
+      continue;
+    }
+    const [x, y] = at(villageAngle(f.i), 1.2);
+    cx2.strokeStyle = `rgba(255,107,94,${1 - t})`;
+    cx2.lineWidth = 2;
+    cx2.beginPath();
+    cx2.arc(x, y, reduced ? 14 : 8 + 22 * t, 0, Math.PI * 2);
+    cx2.stroke();
+  }
+
+  drawChart();
+}
+
+function drawBoat(x, y, h, len, fill, light) {
+  cx2.save();
+  cx2.translate(x, y);
+  cx2.rotate(h);
+  cx2.fillStyle = fill;
+  cx2.beginPath();
+  cx2.moveTo(len / 2, 0);
+  cx2.quadraticCurveTo(0, len / 3.2, -len / 2, len / 5);
+  cx2.lineTo(-len / 2, -len / 5);
+  cx2.quadraticCurveTo(0, -len / 3.2, len / 2, 0);
+  cx2.fill();
+  if (light) {
+    cx2.fillStyle = light;
+    for (const dx of [-len / 3, 0, len / 3]) cx2.fillRect(dx - 1, -1, 2, 2);
+  }
+  cx2.restore();
+}
+
+const SPAN = 200;
+function drawChart() {
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue("--accent-c").trim(), mute = css.getPropertyValue("--mute").trim(), line = css.getPropertyValue("--line").trim();
+  const pad = { l: 34, r: 4, t: 6, b: 6 };
+  const w = CW - pad.l - pad.r, h = CH - pad.t - pad.b;
+  const X = (i) => pad.l + (i / (SPAN - 1)) * w, Y = (v) => pad.t + h * (1 - v / P.K0);
+  ch2.clearRect(0, 0, CW, CH);
+  ch2.font = `11px ${getComputedStyle(document.body).fontFamily}`;
+  ch2.textAlign = "right";
+  ch2.textBaseline = "middle";
+  for (const v of [0, 500, 1000]) {
+    ch2.fillStyle = mute;
+    ch2.fillText(String(v), pad.l - 8, Y(v));
+    ch2.strokeStyle = line;
+    ch2.lineWidth = 1;
+    ch2.beginPath();
+    ch2.moveTo(pad.l, Y(v));
+    ch2.lineTo(CW - pad.r, Y(v));
+    ch2.stroke();
+  }
+  const hist = state.history.slice(-SPAN);
+  const series = (get, color, width, dash) => {
+    ch2.strokeStyle = color;
+    ch2.lineWidth = width;
+    ch2.setLineDash(dash);
+    ch2.beginPath();
+    hist.forEach((d, i) => (i ? ch2.lineTo(X(i), Y(get(d))) : ch2.moveTo(X(i), Y(get(d)))));
+    ch2.stroke();
+    ch2.setLineDash([]);
+  };
+  series((d) => d.K, mute, 1.5, [5, 4]);
+  series((d) => d.K / 2, mute, 1.5, [1.5, 3]);
+  series((d) => d.S, accent, 2, []);
+}
+
+// ---------- loop: runs only while on screen ----------
+let visible = true, running = false, last = 0;
+function frame(now) {
+  if (!visible || document.hidden) return (running = false);
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (playing) {
+    progress += dt * speed * 0.8;
+    for (let n = 0; progress >= 1 && n < 4; n++) {
+      progress -= 1;
+      advance();
+    }
+    progress %= 1;
+  }
+  draw(now);
+  requestAnimationFrame(frame);
+}
+function wake() {
+  if (running || !visible || document.hidden) return;
+  running = true;
+  last = performance.now();
+  requestAnimationFrame(frame);
+}
+new IntersectionObserver(([e]) => ((visible = e.isIntersecting), wake())).observe(lake);
+document.addEventListener("visibilitychange", wake);
+
+setAll(false);
+say("Eight villages share one lake, with no rules at all.");
+plan = newPlan({ ...state, events: [] });
+syncDom();
+setPlaying(playing);
+</script>
+</body>
+</html>
