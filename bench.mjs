@@ -3,6 +3,7 @@
 import { ALL_OFF, ALL_ON, PRINCIPLES, createState, step } from "./sim.js";
 
 const [seeds = 200, seasons = 150] = process.argv.slice(2).map(Number);
+const TAIL = 50; // seasons averaged at the end of each run
 
 function run(sw) {
   let collapses = 0, stock = 0, haul = 0, cheat = 0;
@@ -12,12 +13,12 @@ function run(sw) {
     for (let t = 0; t < seasons; t++) {
       s = step(s, sw);
       ever ||= s.collapsed;
+      if (t < seasons - TAIL) continue;
+      stock += s.last.S / TAIL;
+      haul += s.last.catch / TAIL;
+      cheat += s.last.cheaters / TAIL;
     }
     collapses += ever;
-    const tail = s.history.slice(-50);
-    stock += tail.reduce((a, h) => a + h.S, 0) / tail.length;
-    haul += tail.reduce((a, h) => a + h.catch, 0) / tail.length;
-    cheat += tail.reduce((a, h) => a + h.cheaters, 0) / tail.length;
   }
   return { collapse: `${((100 * collapses) / seeds).toFixed(0)}%`, stock: Math.round(stock / seeds), catch: Math.round(haul / seeds), cheaters: +(cheat / seeds).toFixed(1) };
 }

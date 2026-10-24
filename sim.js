@@ -29,6 +29,10 @@ export const P = {
   maxEffort: 8, // per village
   fixedCatch: 90, // a one-size catch limit written in a good year (MSY is 100 at full capacity)
   pull: 0.2, // adaptive quota's pull toward half capacity
+  countNoise: 0.3, // log-sd of the stock estimate nobody checks
+  privilege: [1.5, 1.36, 1.21, 1.07, 0.93, 0.79, 0.64, 0.5], // catch shares when the split isn't fair; sums to 8
+  grievance: 0.04, // trust lost per season per unit of share shortfall
+  humiliation: 0.2, // trust a village loses when hit with the flat fine
   whim: 0.15, // spread of each season's cheat-or-not decision
   trustCouncil: 0.65,
   trustImposed: 0.45,
@@ -46,7 +50,8 @@ export const P = {
   refugium: 2, // fish that drift in from upstream each season, so an empty lake can recover
   detectOn: 0.8,
   detectOff: 0.05,
-  flatFine: 0.1,
+  flatFine: 1, // one ruinous fine for any offence, first or tenth
+  enforceFlat: 0.3, // chance neighbours actually impose it (my assumption, not a measurement)
   ladder: [0.15, 0.4, 0.8, 1.2], // graduated sanctions; the last rung also suspends
   suspension: 2,
   forgive: 4, // clean seasons to drop one strike
@@ -68,7 +73,7 @@ const gauss = (s) => Math.sqrt(-2 * Math.log(1 - rand(s))) * Math.cos(2 * Math.P
 const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
 
 export function createState(seed = 1) {
-  const s = { seed, season: 0, S: P.K0 * 0.8, K: P.K0, outsiders: 0, trawler: 0, collapsed: false, history: [] };
+  const s = { seed, season: 0, S: P.K0 * 0.8, K: P.K0, outsiders: 0, trawler: 0, collapsed: false, last: null };
   s.villages = Array.from({ length: P.villages }, (_, i) => ({
     greed: 0.2 + (0.7 * i) / (P.villages - 1),
     trust: 0.6,
@@ -77,6 +82,7 @@ export function createState(seed = 1) {
     clean: 0,
     suspended: 0,
     cheated: false,
+    ruined: false,
     caught: false,
     catch: 0,
   }));
@@ -97,13 +103,17 @@ export function step(state, sw) {
   const hasQuota = sw.fit || sw.council;
 
   // 1. Effort. Quotas are in fish, not effort: a fixed effort limit would adapt to the stock on its own.
-  // Adaptive: expected regrowth, plus a pull toward half capacity. Fixed: one number written in a good year.
-  const regrowth = P.r * s.S * (1 - s.S / s.K);
-  const quota = sw.fit ? clamp(regrowth + P.pull * (s.S - s.K / 2), 0, 0.9 * s.S) : P.fixedCatch;
+  // Adaptive: expected regrowth of the *counted* stock, plus a pull toward half capacity; without
+  // monitoring the count is a guess. Fixed: one number written in a good year.
+  // Fitting rules also share the catch fairly; otherwise old privileges skew it.
+  const counted = sw.monitoring ? s.S : s.S * Math.exp(P.countNoise * gauss(s));
+  const regrowth = P.r * counted * (1 - counted / s.K);
+  const quota = sw.fit ? clamp(regrowth + P.pull * (counted - s.K / 2), 0, 0.9 * s.S) : P.fixedCatch;
   const detect = sw.monitoring ? P.detectOn : P.detectOff;
   const eMSY = P.r / (2 * P.q);
+  vs.forEach((v, i) => (v.share = sw.fit ? 1 : P.privilege[i]));
   for (const v of vs) {
-    v.cheated = v.caught = false;
+    v.cheated = v.caught = v.ruined = false;
     if (v.suspended > 0) {
       v.suspended--;
       v.effort = 0;
@@ -114,8 +124,8 @@ export function step(state, sw) {
       continue;
     }
     // Fish the share only while it pays; cheating adds effort on top, even under a closure.
-    const share = margin > 0 ? quota / vs.length / (P.q * s.S) : 0;
-    const fine = sw.sanctions ? P.ladder[Math.min(v.strikes, P.ladder.length - 1)] : P.flatFine;
+    const share = margin > 0 ? (quota * v.share) / vs.length / (P.q * s.S) : 0;
+    const fine = sw.sanctions ? P.ladder[Math.min(v.strikes, P.ladder.length - 1)] : P.flatFine * P.enforceFlat;
     v.cheated = margin > 0 && v.greed + P.whim * gauss(s) > v.trust + detect * fine;
     v.effort = Math.min(P.maxEffort, share + (v.cheated ? (v.greed * eMSY) / vs.length : 0));
   }
@@ -150,8 +160,10 @@ export function step(state, sw) {
   for (const v of cheaters) {
     if (rand(s) >= detect) continue;
     v.caught = true;
-    // rung: index into P.ladder of the sanction applied (the top rung suspends), or -1 for the flat fine.
-    const rung = sw.sanctions ? Math.min(v.strikes, P.ladder.length - 1) : -1;
+    // Neighbours rarely bring themselves to ruin a neighbour, so the flat fine is often waived.
+    v.ruined = !sw.sanctions && rand(s) < P.enforceFlat;
+    // rung: index into P.ladder of the sanction applied (the top rung suspends); -1 flat fine; -2 waived.
+    const rung = sw.sanctions ? Math.min(v.strikes, P.ladder.length - 1) : v.ruined ? -1 : -2;
     events.push({ type: "caught", village: vs.indexOf(v), rung });
     if (sw.sanctions) {
       v.strikes++;
@@ -169,8 +181,11 @@ export function step(state, sw) {
   const repair = sw.mediation ? P.repairOn : P.repairOff;
   for (const v of vs) {
     const others = caughtCount - (v.caught ? 1 : 0);
+    const soften = sw.mediation ? 0.3 : 1;
     let dt = repair * (baseline - v.trust);
-    dt -= others * P.resentment * (sw.mediation ? 0.3 : 1);
+    dt -= others * P.resentment * soften;
+    if (v.ruined) dt -= P.humiliation * soften; // a ruinous fine breeds a grudge
+    if (hasQuota) dt -= P.grievance * Math.max(0, 1 - v.share); // short-changed by the split
     if (!v.cheated) dt -= unseen * P.sucker;
     if (trawling) dt -= P.overruled;
     v.trust = clamp(v.trust + dt);
@@ -188,8 +203,7 @@ export function step(state, sw) {
   const collapsed = s.S < P.collapse * s.K;
   if (collapsed && !s.collapsed) events.push({ type: "collapse" });
   s.collapsed = collapsed;
-  s.history.push({ S: s.S, K: s.K, catch: caught, cheaters: cheaters.length, caught: caughtCount, outsiders: s.outsiders });
-  if (s.history.length > 400) s.history.shift();
+  s.last = { S: s.S, K: s.K, catch: caught, cheaters: cheaters.length, caught: caughtCount, outsiders: s.outsiders };
   s.events = events;
   return s;
 }

@@ -84,6 +84,16 @@
   .how { font-size: 13px; color: var(--mute); line-height: 1.55; border-top: 1px solid var(--line); padding-top: 12px; }
   .how summary { color: var(--fg); font-weight: 600; cursor: pointer; }
   .how ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; max-width: 68ch; }
+  .cases h2 { font-size: 16px; margin: 0 0 4px; }
+  .cases .lede { margin: 0 0 12px; font-size: 14px; color: var(--mute); }
+  .cases ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .cases li { border-left: 2px solid var(--accent-c); padding-left: 12px; }
+  .cases li.fail { border-left-color: var(--warn); }
+  .cases h3 { font-size: 14px; margin: 0 0 2px; }
+  .cases h3 span { font-weight: 400; color: var(--mute); margin-left: 6px; }
+  .cases p { margin: 0; font-size: 13px; line-height: 1.55; max-width: 68ch; }
+  .cases .meta { color: var(--mute); font-size: 12px; margin-top: 3px; }
+  .cases a { color: inherit; text-underline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -91,7 +101,7 @@
 <main class="app">
   <header>
     <h1>The Lake</h1>
-    <p class="thesis">Garrett Hardin said a shared lake gets fished to death. Elinor Ostrom went and looked at real ones, and found villages that had shared theirs for centuries. Eight villages fish this lake. You can't fish. You can only change the rules.</p>
+    <p class="thesis">Garrett Hardin argued that anything open to everyone gets used up. Elinor Ostrom went and looked, and found communities that had shared pastures, fisheries and canals for generations. Eight villages fish this lake. You can't fish. You can only change the rules.</p>
   </header>
 
   <div class="stage">
@@ -142,14 +152,48 @@
   <details class="how">
     <summary>How the model works</summary>
     <ul>
-      <li>Fish regrow fastest at half capacity, 40% a year at best, with good years and bad years drawn at random. Below 150 fish, spawning starts to fail, so a thin lake crashes instead of gliding down.</li>
-      <li>With no catch limit, villages add effort while fishing still pays. That drives the lake down to where it just breaks even: 200 fish, a fifth of capacity.</li>
+      <li>Fish regrow fastest at half capacity, 40% a year at best, with good years and bad years drawn at random. Below 150 fish, spawning starts to fail.</li>
+      <li>With no catch limit, villages add effort while fishing still pays. That drives the lake down to where it just breaks even: 200 fish. The textbook model stops there. Here, bad years push it under 150 and it crashes. That's a choice I made, and it's why Hardin's lake usually empties rather than just running thin.</li>
       <li>With a limit, each village decides every season whether to take extra. Greed pushes one way; trust, the odds of being caught, and the size of the next penalty push back.</li>
-      <li>Trust drifts toward a level set by who made the rules: higher when the villages wrote them together. Seeing neighbours caught lowers it, and so does noticing the lake thin while you played fair. Mediation softens both and speeds repair.</li>
-      <li>A fixed limit is 90 fish a year. An adaptive one follows the expected regrowth and leans toward half capacity.</li>
+      <li>Trust drifts toward a level set by who made the rules: higher when the villages wrote them together. Seeing neighbours caught lowers it, and so does noticing the lake thin while you played fair, or getting a short share. Mediation softens these and speeds repair.</li>
+      <li>A fixed limit is 90 fish a year. An adaptive one follows the counted stock and leans toward half capacity. Without monitoring, the count is a guess.</li>
+      <li>Without graduated sanctions, every offence gets one ruinous fine, which neighbours impose only 30% of the time and which leaves a grudge when they do. If they always imposed it, a flat fine would work as well. That 30% is my assumption.</li>
+      <li>Ostrom called her principles best practices, not a recipe. In a 2016 study of 69 commons, no single principle was enough on its own.</li>
       <li>Every number here is a choice I made, not a measurement. The whole model is about 200 lines of JavaScript inside this page. Read it, change it, argue with it.</li>
     </ul>
   </details>
+
+  <section class="cases">
+    <h2>Real commons</h2>
+    <p class="lede">Thirty years after his essay, Hardin wrote that he should have said <em>unmanaged</em> commons.</p>
+    <ol>
+      <li>
+        <h3>Alanya, Turkey <span>inshore fishery, since the 1970s</span></h3>
+        <p>After years of fights over the best spots, about 100 fishers named every site, drew lots each September, and rotated daily, following the fish east and then west. The fisher whose turn it was saw any cheater. Disputes were settled at the coffeehouse.</p>
+        <p class="meta">Principles 1, 2, 3, 4, 6, 7 · <a href="https://doi.org/10.1016/0308-597X(86)90054-0">Berkes 1986</a>; Ostrom 1990</p>
+      </li>
+      <li>
+        <h3>Törbel, Switzerland <span>alpine meadows, records from 1224</span></h3>
+        <p>A 1517 rule, still enforced in the 1970s: no one may summer more cows on the shared alp than they can feed through winter. Cows are counted on arrival because cheese is shared per cow, so monitoring costs almost nothing.</p>
+        <p class="meta">Principles 1, 2, 3, 4, 5 · Netting 1981; Ostrom 1990</p>
+      </li>
+      <li>
+        <h3>Valencia, Spain <span>irrigation, since at least 1435</span></h3>
+        <p>Each canal's farmers elect a syndic who farms land on it. The Water Tribunal meets on Thursday mornings outside the cathedral, without lawyers, and rules on the spot. In 15th-century fine books, two-thirds of offenders were never fined again.</p>
+        <p class="meta">Principles 2, 3, 4, 5, 6, 8 · <a href="https://ich.unesco.org/en/RL/irrigators-tribunals-of-the-spanish-mediterranean-coast-the-council-of-wise-men-of-the-plain-of-murcia-and-the-water-tribunal-of-the-plain-of-valencia-00171">UNESCO 2009</a>; Ostrom 1990</p>
+      </li>
+      <li>
+        <h3>Maine, USA <span>lobster, zone councils since 1995</span></h3>
+        <p>You need a state licence and acceptance by your harbour's "gang", and then you fish only its territory. Since 1995, elected zone councils have set their own trap limits, which the state legislature had failed to pass.</p>
+        <p class="meta">Principles 1, 7, 8 · <a href="https://dlc.dlib.indiana.edu/dlcrest/api/core/bitstreams/93b52c41-e0ae-4813-baf1-3ab4dfc64ff1/content">Acheson</a></p>
+      </li>
+      <li class="fail">
+        <h3>Grand Banks, Canada <span>northern cod, collapsed 1992</span></h3>
+        <p>Not an unmanaged commons: Ottawa set the quotas. Its stock counts ran high, foreign fleets fished just outside the 200-mile line, and inshore fishers' warnings were discounted. The 1992 moratorium cost about 30,000 jobs. Commercial fishing reopened in 2024.</p>
+        <p class="meta">Missing 1, 2, 3 (my reading) · <a href="https://doi.org/10.1139/f94-214">Hutchings &amp; Myers 1994</a>; <a href="https://www.cbc.ca/news/canada/newfoundland-labrador/nl-northern-cod-fishery-2024-1.7246735">CBC 2024</a></p>
+      </li>
+    </ol>
+  </section>
 </main>
 
 <script type="module">
@@ -184,6 +228,10 @@ const P = {
   maxEffort: 8, // per village
   fixedCatch: 90, // a one-size catch limit written in a good year (MSY is 100 at full capacity)
   pull: 0.2, // adaptive quota's pull toward half capacity
+  countNoise: 0.3, // log-sd of the stock estimate nobody checks
+  privilege: [1.5, 1.36, 1.21, 1.07, 0.93, 0.79, 0.64, 0.5], // catch shares when the split isn't fair; sums to 8
+  grievance: 0.04, // trust lost per season per unit of share shortfall
+  humiliation: 0.2, // trust a village loses when hit with the flat fine
   whim: 0.15, // spread of each season's cheat-or-not decision
   trustCouncil: 0.65,
   trustImposed: 0.45,
@@ -201,7 +249,8 @@ const P = {
   refugium: 2, // fish that drift in from upstream each season, so an empty lake can recover
   detectOn: 0.8,
   detectOff: 0.05,
-  flatFine: 0.1,
+  flatFine: 1, // one ruinous fine for any offence, first or tenth
+  enforceFlat: 0.3, // chance neighbours actually impose it (my assumption, not a measurement)
   ladder: [0.15, 0.4, 0.8, 1.2], // graduated sanctions; the last rung also suspends
   suspension: 2,
   forgive: 4, // clean seasons to drop one strike
@@ -223,7 +272,7 @@ const gauss = (s) => Math.sqrt(-2 * Math.log(1 - rand(s))) * Math.cos(2 * Math.P
 const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
 
 function createState(seed = 1) {
-  const s = { seed, season: 0, S: P.K0 * 0.8, K: P.K0, outsiders: 0, trawler: 0, collapsed: false, history: [] };
+  const s = { seed, season: 0, S: P.K0 * 0.8, K: P.K0, outsiders: 0, trawler: 0, collapsed: false, last: null };
   s.villages = Array.from({ length: P.villages }, (_, i) => ({
     greed: 0.2 + (0.7 * i) / (P.villages - 1),
     trust: 0.6,
@@ -232,6 +281,7 @@ function createState(seed = 1) {
     clean: 0,
     suspended: 0,
     cheated: false,
+    ruined: false,
     caught: false,
     catch: 0,
   }));
@@ -252,13 +302,17 @@ function step(state, sw) {
   const hasQuota = sw.fit || sw.council;
 
   // 1. Effort. Quotas are in fish, not effort: a fixed effort limit would adapt to the stock on its own.
-  // Adaptive: expected regrowth, plus a pull toward half capacity. Fixed: one number written in a good year.
-  const regrowth = P.r * s.S * (1 - s.S / s.K);
-  const quota = sw.fit ? clamp(regrowth + P.pull * (s.S - s.K / 2), 0, 0.9 * s.S) : P.fixedCatch;
+  // Adaptive: expected regrowth of the *counted* stock, plus a pull toward half capacity; without
+  // monitoring the count is a guess. Fixed: one number written in a good year.
+  // Fitting rules also share the catch fairly; otherwise old privileges skew it.
+  const counted = sw.monitoring ? s.S : s.S * Math.exp(P.countNoise * gauss(s));
+  const regrowth = P.r * counted * (1 - counted / s.K);
+  const quota = sw.fit ? clamp(regrowth + P.pull * (counted - s.K / 2), 0, 0.9 * s.S) : P.fixedCatch;
   const detect = sw.monitoring ? P.detectOn : P.detectOff;
   const eMSY = P.r / (2 * P.q);
+  vs.forEach((v, i) => (v.share = sw.fit ? 1 : P.privilege[i]));
   for (const v of vs) {
-    v.cheated = v.caught = false;
+    v.cheated = v.caught = v.ruined = false;
     if (v.suspended > 0) {
       v.suspended--;
       v.effort = 0;
@@ -269,8 +323,8 @@ function step(state, sw) {
       continue;
     }
     // Fish the share only while it pays; cheating adds effort on top, even under a closure.
-    const share = margin > 0 ? quota / vs.length / (P.q * s.S) : 0;
-    const fine = sw.sanctions ? P.ladder[Math.min(v.strikes, P.ladder.length - 1)] : P.flatFine;
+    const share = margin > 0 ? (quota * v.share) / vs.length / (P.q * s.S) : 0;
+    const fine = sw.sanctions ? P.ladder[Math.min(v.strikes, P.ladder.length - 1)] : P.flatFine * P.enforceFlat;
     v.cheated = margin > 0 && v.greed + P.whim * gauss(s) > v.trust + detect * fine;
     v.effort = Math.min(P.maxEffort, share + (v.cheated ? (v.greed * eMSY) / vs.length : 0));
   }
@@ -305,8 +359,10 @@ function step(state, sw) {
   for (const v of cheaters) {
     if (rand(s) >= detect) continue;
     v.caught = true;
-    // rung: index into P.ladder of the sanction applied (the top rung suspends), or -1 for the flat fine.
-    const rung = sw.sanctions ? Math.min(v.strikes, P.ladder.length - 1) : -1;
+    // Neighbours rarely bring themselves to ruin a neighbour, so the flat fine is often waived.
+    v.ruined = !sw.sanctions && rand(s) < P.enforceFlat;
+    // rung: index into P.ladder of the sanction applied (the top rung suspends); -1 flat fine; -2 waived.
+    const rung = sw.sanctions ? Math.min(v.strikes, P.ladder.length - 1) : v.ruined ? -1 : -2;
     events.push({ type: "caught", village: vs.indexOf(v), rung });
     if (sw.sanctions) {
       v.strikes++;
@@ -324,8 +380,11 @@ function step(state, sw) {
   const repair = sw.mediation ? P.repairOn : P.repairOff;
   for (const v of vs) {
     const others = caughtCount - (v.caught ? 1 : 0);
+    const soften = sw.mediation ? 0.3 : 1;
     let dt = repair * (baseline - v.trust);
-    dt -= others * P.resentment * (sw.mediation ? 0.3 : 1);
+    dt -= others * P.resentment * soften;
+    if (v.ruined) dt -= P.humiliation * soften; // a ruinous fine breeds a grudge
+    if (hasQuota) dt -= P.grievance * Math.max(0, 1 - v.share); // short-changed by the split
     if (!v.cheated) dt -= unseen * P.sucker;
     if (trawling) dt -= P.overruled;
     v.trust = clamp(v.trust + dt);
@@ -343,8 +402,7 @@ function step(state, sw) {
   const collapsed = s.S < P.collapse * s.K;
   if (collapsed && !s.collapsed) events.push({ type: "collapse" });
   s.collapsed = collapsed;
-  s.history.push({ S: s.S, K: s.K, catch: caught, cheaters: cheaters.length, caught: caughtCount, outsiders: s.outsiders });
-  if (s.history.length > 400) s.history.shift();
+  s.last = { S: s.S, K: s.K, catch: caught, cheaters: cheaters.length, caught: caughtCount, outsiders: s.outsiders };
   s.events = events;
   return s;
 }
@@ -353,15 +411,16 @@ function step(state, sw) {
 const NAMES = ["Alder", "Birch", "Cove", "Dunlin", "Eelmouth", "Fernhill", "Gull Rock", "Heron"];
 const COPY = {
   boundaries: ["Clear boundaries", "Only member villages fish here."],
-  fit: ["Rules that fit", "The catch limit follows this year's fish count."],
-  council: ["Shared decisions", "Fishers write the rules together."],
-  monitoring: ["Monitoring", "Someone counts the catch."],
-  sanctions: ["Graduated sanctions", "A warning first, then fines that grow."],
+  fit: ["Rules that fit", "Limits follow this year's fish count, and shares are fair."],
+  council: ["Shared decisions", "The people bound by the rules help write them."],
+  monitoring: ["Monitoring", "Fishers count the catch and the fish."],
+  sanctions: ["Graduated sanctions", "A warning first, not one ruinous fine."],
   mediation: ["Conflict resolution", "Disputes go to mediation, quickly and cheaply."],
   autonomy: ["Right to organise", "No outside licence overrides local rules."],
   nested: ["Nested governance", "Upstream farms answer to a watershed council."],
 };
 const RUNG = ["Warning.", "Fined.", "Fined heavily.", "Suspended for two seasons."];
+const FLAT = { [-1]: "A ruinous fine. They won't forget it.", [-2]: "Nobody can bring themselves to impose the fine." };
 
 const $ = (id) => document.getElementById(id);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -371,6 +430,7 @@ let playing = !reduced, speed = 1, progress = 0;
 let plan = null; // where each boat rows this season
 const flashes = []; // caught-cheating rings
 const log = [];
+const history = []; // one record per season, for the chart
 
 // ---------- controls ----------
 const grid = $("switches");
@@ -420,7 +480,7 @@ $("trial").addEventListener("click", async ({ currentTarget: btn }) => {
     for (let t = 0; t < TRIAL.seasons; t++) {
       s = step(s, rules);
       ever ||= s.collapsed;
-      if (t >= TRIAL.seasons - TRIAL.tail) haul += s.history.at(-1).catch;
+      if (t >= TRIAL.seasons - TRIAL.tail) haul += s.last.catch;
     }
     emptied += ever;
     if (seed % TRIAL.batch === 0) {
@@ -441,7 +501,7 @@ function say(text) {
 
 function narrate(prev, s) {
   for (const e of s.events) {
-    if (e.type === "caught") say(`${NAMES[e.village]} fished over the limit. ${e.rung < 0 ? "A token fine." : RUNG[e.rung]}`);
+    if (e.type === "caught") say(`${NAMES[e.village]} fished over the limit. ${RUNG[e.rung] ?? FLAT[e.rung]}`);
     if (e.type === "trawler") say("The capital licenses a trawler on your lake.");
     if (e.type === "collapse") say("The lake is empty. The fish are gone.");
   }
@@ -454,7 +514,7 @@ function narrate(prev, s) {
 
 const fmt = (n) => Math.round(n).toLocaleString("en");
 function syncDom() {
-  const last = state.history.at(-1);
+  const last = state.last;
   $("st-season").textContent = state.season;
   $("st-fish").textContent = fmt(state.S);
   $("st-catch").textContent = fmt(last?.catch ?? 0);
@@ -526,6 +586,8 @@ const ease = (t) => t * t * (3 - 2 * t);
 function advance() {
   const prev = state;
   state = step(state, sw);
+  history.push(state.last);
+  if (history.length > SPAN) history.shift();
   narrate(prev, state);
   plan = newPlan(state);
   for (const e of state.events) if (e.type === "caught") flashes.push({ i: e.village, t0: performance.now() });
@@ -692,7 +754,7 @@ function drawChart() {
     ch2.lineTo(CW - pad.r, Y(v));
     ch2.stroke();
   }
-  const hist = state.history.slice(-SPAN);
+  const hist = history.slice(-SPAN);
   const series = (get, color, width, dash) => {
     ch2.strokeStyle = color;
     ch2.lineWidth = width;
