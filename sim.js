@@ -61,19 +61,23 @@ export const P = {
   collapse: 0.02,
 };
 
-/** Seeded PRNG (mulberry32) whose state lives in the sim state, so `step` stays pure. */
-const rand = (s) => {
-  s.seed = (s.seed + 0x6d2b79f5) | 0;
-  let t = s.seed;
+/**
+ * Seeded PRNG (mulberry32) whose state lives in the sim state, so `step` stays pure.
+ * Two streams: `seed` for people's choices, `weather` for good and bad years, so the same
+ * seed gives the same weather whatever the rules.
+ */
+const rand = (s, stream = "seed") => {
+  s[stream] = (s[stream] + 0x6d2b79f5) | 0;
+  let t = s[stream];
   t = Math.imul(t ^ (t >>> 15), t | 1);
   t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
-const gauss = (s) => Math.sqrt(-2 * Math.log(1 - rand(s))) * Math.cos(2 * Math.PI * rand(s));
+const gauss = (s, stream) => Math.sqrt(-2 * Math.log(1 - rand(s, stream))) * Math.cos(2 * Math.PI * rand(s, stream));
 const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
 
 export function createState(seed = 1) {
-  const s = { seed, season: 0, S: P.K0 * 0.8, K: P.K0, outsiders: 0, trawler: 0, collapsed: false, last: null };
+  const s = { seed, weather: seed ^ 0x9e3779b9, season: 0, S: P.K0 * 0.8, K: P.K0, outsiders: 0, trawler: 0, collapsed: false, last: null };
   s.villages = Array.from({ length: P.villages }, (_, i) => ({
     greed: 0.2 + (0.7 * i) / (P.villages - 1),
     trust: 0.6,
@@ -132,6 +136,7 @@ export function step(state, sw) {
   if (!sw.boundaries) {
     s.outsiders = clamp(s.outsiders + P.outsiderEntry * margin - (margin < 0 ? 0.2 * s.outsiders : 0), 0, P.maxOutsiders);
   } else s.outsiders = 0;
+  if (sw.autonomy) s.trawler = 0; // local rules stand: any outside licence is void at once
   if (!sw.autonomy && s.trawler === 0 && s.season > 0 && s.season % P.trawlerEvery === 0) {
     s.trawler = P.trawlerSeasons;
     events.push({ type: "trawler" });
@@ -192,7 +197,7 @@ export function step(state, sw) {
   }
 
   // 4. Regrowth with good/bad years and depensation.
-  const rt = P.r * Math.max(0.1, 1 + P.rNoise * gauss(s));
+  const rt = P.r * Math.max(0.1, 1 + P.rNoise * gauss(s, "weather"));
   const recruit = Math.min(1, s.S / (P.allee * s.K));
   s.S = Math.max(0, s.S + rt * s.S * (1 - s.S / s.K) * recruit) + P.refugium;
 
