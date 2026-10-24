@@ -76,7 +76,14 @@
   .key i { width: 16px; height: 0; border-top: 2px solid var(--accent-c); }
   .key i.k { border-top: 1.5px dashed var(--mute); }
   .key i.m { border-top: 1.5px dotted var(--mute); }
+  .trial { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 10px; }
+  .trial p { margin: 0; font-size: 13px; color: var(--mute); line-height: 1.45; flex: 1 1 260px; }
+  .trial strong { color: var(--fg); font-weight: 600; }
+  button:disabled { opacity: 0.6; cursor: progress; }
   #chart { display: block; width: 100%; height: 130px; }
+  .how { font-size: 13px; color: var(--mute); line-height: 1.55; border-top: 1px solid var(--line); padding-top: 12px; }
+  .how summary { color: var(--fg); font-weight: 600; cursor: pointer; }
+  .how ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; max-width: 68ch; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -116,6 +123,10 @@
       <button data-preset="on">Ostrom's lake: all on</button>
     </div>
     <div class="grid" id="switches"></div>
+    <div class="trial">
+      <button id="trial">Test these rules on 200 lakes</button>
+      <p id="trial-out" aria-live="polite">One lake can be lucky. Two hundred can't.</p>
+    </div>
   </fieldset>
 
   <section>
@@ -127,6 +138,18 @@
     </div>
     <canvas id="chart" role="img" aria-label="Fish stock over the last 200 seasons."></canvas>
   </section>
+
+  <details class="how">
+    <summary>How the model works</summary>
+    <ul>
+      <li>Fish regrow fastest at half capacity, 40% a year at best, with good years and bad years drawn at random. Below 150 fish, spawning starts to fail, so a thin lake crashes instead of gliding down.</li>
+      <li>With no catch limit, villages add effort while fishing still pays. That drives the lake down to where it just breaks even: 200 fish, a fifth of capacity.</li>
+      <li>With a limit, each village decides every season whether to take extra. Greed pushes one way; trust, the odds of being caught, and the size of the next penalty push back.</li>
+      <li>Trust drifts toward a level set by who made the rules: higher when the villages wrote them together. Seeing neighbours caught lowers it, and so does noticing the lake thin while you played fair. Mediation softens both and speeds repair.</li>
+      <li>A fixed limit is 90 fish a year. An adaptive one follows the expected regrowth and leans toward half capacity.</li>
+      <li>Every number here is a choice I made, not a measurement. The whole model is about 200 lines of JavaScript inside this page. Read it, change it, argue with it.</li>
+    </ul>
+  </details>
 </main>
 
 <script type="module">
@@ -187,8 +210,32 @@ document.querySelectorAll("[data-speed]").forEach((b) =>
 );
 $("restock").addEventListener("click", () => {
   state = restock(state);
-  say("The lake is restocked. The rules are whatever you left them.");
+  say("The lake is restocked. Your rules still stand.");
   syncDom();
+});
+
+// Monte Carlo over fixed seeds, yielding to the page between batches.
+const TRIAL = { lakes: 200, seasons: 150, tail: 50, batch: 20 };
+$("trial").addEventListener("click", async ({ currentTarget: btn }) => {
+  const rules = { ...sw }, out = $("trial-out");
+  btn.disabled = true;
+  let emptied = 0, haul = 0;
+  for (let seed = 1; seed <= TRIAL.lakes; seed++) {
+    let s = createState(seed), ever = false;
+    for (let t = 0; t < TRIAL.seasons; t++) {
+      s = step(s, rules);
+      ever ||= s.collapsed;
+      if (t >= TRIAL.seasons - TRIAL.tail) haul += s.history.at(-1).catch;
+    }
+    emptied += ever;
+    if (seed % TRIAL.batch === 0) {
+      out.textContent = `Running lake ${seed} of ${TRIAL.lakes}…`;
+      await new Promise((r) => setTimeout(r));
+    }
+  }
+  const avg = Math.round(haul / TRIAL.lakes / TRIAL.tail);
+  out.innerHTML = `<strong>${emptied} of ${TRIAL.lakes}</strong> lakes emptied at least once in ${TRIAL.seasons} seasons. They settled at a catch of <strong>${avg} fish</strong> a season, of the 100 a healthy lake can sustain.`;
+  btn.disabled = false;
 });
 
 function say(text) {
@@ -203,6 +250,7 @@ function narrate(prev, s) {
     if (e.type === "trawler") say("The capital licenses a trawler on your lake.");
     if (e.type === "collapse") say("The lake is empty. The fish are gone.");
   }
+  if (prev.collapsed && !s.collapsed) say("A few fish drift back in from upstream.");
   if (prev.outsiders < 1 && s.outsiders >= 1) say("Boats from outside start fishing here.");
   const quota = sw.fit || sw.council;
   if (quota && !plan?.quota) say(sw.council ? "The villages meet and agree a catch limit." : "A catch limit is posted.");
