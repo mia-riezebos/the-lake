@@ -11,8 +11,8 @@
     --mute: var(--muted-foreground, #9a9c96);
     --line: var(--border, #2c302d);
     --surface: var(--card, #1a1d1b);
-    --accent-c: var(--chart-1, #6cc4d8);
-    --warn: #ff6b5e;
+    --accent-c: var(--chart-1, color-mix(in oklab, #6cc4d8 70%, var(--fg)));
+    --warn: color-mix(in oklab, #ff6b5e 70%, var(--fg));
     --r: var(--radius, 10px);
     --sans: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
     --mono: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
@@ -23,7 +23,8 @@
   h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0 0 4px; }
   .thesis { margin: 0; color: var(--mute); font-size: 14px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
   .stage { position: relative; border-radius: var(--r); overflow: hidden; background: #18201b; }
-  #lake { display: block; width: 100%; height: 340px; }
+  #lake { display: block; width: 100%; height: clamp(220px, 62vw, 340px); }
+  .legend-lake { margin: -6px 0 0; font-size: 12px; color: var(--mute); }
   .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
   .buttons { display: flex; flex-wrap: wrap; gap: 6px; }
   button {
@@ -35,7 +36,7 @@
   button:hover { border-color: var(--mute); }
   button:focus-visible, .switch input:focus-visible + .track { outline: 2px solid var(--accent-c); outline-offset: 2px; }
   button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-  button.restock { border-color: var(--warn); color: var(--warn); }
+  button.restock { border-color: var(--accent-c); color: var(--fg); }
   button[hidden] { display: none; }
   .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; font-size: 13px; color: var(--mute); }
   .stats div { display: flex; gap: 5px; }
@@ -44,9 +45,9 @@
   .log { list-style: none; margin: 0; padding: 0; font-size: 13px; line-height: 1.55; min-height: calc(3 * 1.55em); }
   .log li { color: var(--mute); }
   .log li:first-child { color: var(--fg); }
-  .log b { font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--mute); margin-right: 6px; }
+  .log b { display: inline-block; min-width: 3ch; text-align: right; font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--mute); margin-right: 8px; }
   fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-  legend { font-size: 13px; font-weight: 600; color: var(--mute); padding: 0; margin-bottom: 8px; }
+  legend { font-size: 15px; font-weight: 600; color: var(--fg); padding: 0; margin-bottom: 8px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 6px; }
   .switch {
     display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 10px; align-items: start; align-content: start;
@@ -62,6 +63,7 @@
   .track {
     grid-column: 3; grid-row: 1 / span 2; align-self: center;
     width: 32px; height: 18px; border-radius: 9px; background: var(--line); position: relative;
+    box-shadow: inset 0 0 0 1px var(--mute);
     transition: background-color 160ms ease-out;
   }
   .track::after {
@@ -79,6 +81,7 @@
   .trial { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 10px; }
   .trial p { margin: 0; font-size: 13px; color: var(--mute); line-height: 1.45; flex: 1 1 260px; }
   .trial strong { color: var(--fg); font-weight: 600; }
+  .trial p.stale { opacity: 0.55; }
   button:disabled { opacity: 0.6; cursor: progress; }
   #chart { display: block; width: 100%; height: 130px; }
   .how { font-size: 13px; color: var(--mute); line-height: 1.55; border-top: 1px solid var(--line); padding-top: 12px; }
@@ -94,6 +97,7 @@
   .cases p { margin: 0; font-size: 13px; line-height: 1.55; max-width: 68ch; }
   .cases .meta { color: var(--mute); font-size: 12px; margin-top: 3px; }
   .cases a { color: inherit; text-underline-offset: 2px; }
+  @media (max-width: 520px) { .switch { padding: 8px 10px; } .grid { gap: 4px; } }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -101,16 +105,17 @@
 <main class="app">
   <header>
     <h1>The Lake</h1>
-    <p class="thesis">Garrett Hardin argued that anything open to everyone gets used up. Elinor Ostrom went and looked, and found communities that had shared pastures, fisheries and canals for generations. Eight villages fish this lake. You can't fish. You can only change the rules.</p>
+    <p class="thesis">Garrett Hardin argued that anything open to everyone gets used up. Elinor Ostrom went and looked, and found communities that had shared pastures, fisheries and canals for generations. Eight villages fish this lake. You can't fish. You can only change the rules below.</p>
   </header>
 
   <div class="stage">
     <canvas id="lake" role="img" aria-label="A lake ringed by eight villages. Boats row out each season."></canvas>
   </div>
+  <p class="legend-lake">Pink boats are outsiders. Lanterns glow with each village's trust. A red ring means a village was caught over the limit.</p>
 
   <div class="bar">
     <div class="buttons">
-      <button id="play" aria-pressed="false">Pause</button>
+      <button id="play">Pause</button>
       <button data-speed="1" aria-pressed="true">1×</button>
       <button data-speed="3" aria-pressed="false">3×</button>
       <button data-speed="10" aria-pressed="false">10×</button>
@@ -124,7 +129,7 @@
     </dl>
   </div>
 
-  <ol class="log" id="log" aria-live="polite"></ol>
+  <ol class="log" id="log" role="log"></ol>
 
   <fieldset>
     <legend>Ostrom's eight design principles</legend>
@@ -135,16 +140,16 @@
     <div class="grid" id="switches"></div>
     <div class="trial">
       <button id="trial">Test these rules on 200 lakes</button>
-      <p id="trial-out" aria-live="polite">One lake can be lucky. Two hundred can't.</p>
+      <p id="trial-out" aria-live="polite">Runs your rules on 200 lakes for 150 seasons each, with different weather.</p>
     </div>
   </fieldset>
 
   <section>
     <div class="chart-head">
-      <h2>Fish in the lake</h2>
+      <h2>Fish in the lake, last 200 seasons</h2>
       <span class="key"><i></i>Fish</span>
       <span class="key"><i class="k"></i>Capacity</span>
-      <span class="key"><i class="m"></i>Half capacity: the biggest catch it can sustain</span>
+      <span class="key"><i class="m"></i>Half capacity, where regrowth peaks</span>
     </div>
     <canvas id="chart" role="img" aria-label="Fish stock over the last 200 seasons."></canvas>
   </section>
@@ -152,11 +157,11 @@
   <details class="how">
     <summary>How the model works</summary>
     <ul>
-      <li>Fish regrow fastest at half capacity, 40% a year at best, with good years and bad years drawn at random. Below 150 fish, spawning starts to fail.</li>
-      <li>With no catch limit, villages add effort while fishing still pays. That drives the lake down to where it just breaks even: 200 fish. From a full lake, the rush of new boats overshoots that and the lake crashes. Then fish drift back in from upstream and it runs thin at 200, at half the catch it could sustain. A lake that starts half full runs thin without ever emptying.</li>
+      <li>A healthy lake holds 1,000 fish. Regrowth peaks at half capacity, at 100 fish a season, with good and bad years drawn at random. Below 150 fish, spawning starts to fail.</li>
+      <li>With no catch limit, villages add effort while fishing still pays. That drives the lake down to where it just breaks even: 200 fish. Starting from 800, the rush of new boats overshoots and the lake empties. Then fish drift back in from upstream and it runs thin at about 200, for half the catch it could sustain. A restocked lake, at 500 fish, runs thin without emptying.</li>
       <li>With a limit, each village decides every season whether to take extra. Greed pushes one way; trust, the odds of being caught, and the size of the next penalty push back.</li>
       <li>Trust drifts toward a level set by who made the rules: higher when the villages wrote them together. Seeing neighbours caught lowers it, and so does noticing the lake thin while you played fair, or getting a short share. Mediation softens these and speeds repair.</li>
-      <li>A fixed limit is 90 fish a year. An adaptive one follows the counted stock and leans toward half capacity. Without monitoring, the count is a guess.</li>
+      <li>A fixed limit is 90 fish a season. An adaptive one follows the counted stock and leans toward half capacity. Without monitoring, the count is a guess.</li>
       <li>Without graduated sanctions, every offence gets one ruinous fine, which neighbours impose only 30% of the time and which leaves a grudge when they do. If they always imposed it, a flat fine would work as well. That 30% is my assumption.</li>
       <li>Ostrom called her principles best practices, not a recipe. In a 2016 study of 69 commons, no single principle was enough on its own.</li>
       <li>Every number here is a choice I made, not a measurement. The whole model is about 200 lines of JavaScript inside this page. Read it, change it, argue with it.</li>
@@ -174,23 +179,23 @@
       </li>
       <li>
         <h3>Törbel, Switzerland <span>alpine meadows, records from 1224</span></h3>
-        <p>A 1517 rule, still enforced in the 1970s: no one may summer more cows on the shared alp than they can feed through winter. Cows are counted on arrival because cheese is shared per cow, so monitoring costs almost nothing.</p>
+        <p>A 1517 rule, still enforced in the 1970s: no one may summer more cows on the shared alp than they can feed through winter. Cows are counted on arrival because cheese is shared per cow, so monitoring costs almost nothing. An official fines violators and keeps half the fine.</p>
         <p class="meta">Principles 1, 2, 3, 4, 5 · Netting 1981; Ostrom 1990</p>
       </li>
       <li>
         <h3>Valencia, Spain <span>irrigation, since at least 1435</span></h3>
-        <p>Each canal's farmers elect a syndic who farms land on it. The Water Tribunal meets on Thursday mornings outside the cathedral, without lawyers, and rules on the spot. In 15th-century fine books, two-thirds of offenders were never fined again.</p>
+        <p>Each canal's farmers elect a syndic who farms land on it. The Water Tribunal meets on Thursday mornings outside the cathedral, without lawyers, and rules on the spot. In nearby Castellón's 15th-century fine books, two-thirds of those fined in a year were one-time offenders.</p>
         <p class="meta">Principles 2, 3, 4, 5, 6, 8 · <a href="https://ich.unesco.org/en/RL/irrigators-tribunals-of-the-spanish-mediterranean-coast-the-council-of-wise-men-of-the-plain-of-murcia-and-the-water-tribunal-of-the-plain-of-valencia-00171">UNESCO 2009</a>; Ostrom 1990</p>
       </li>
       <li>
         <h3>Maine, USA <span>lobster, zone councils since 1995</span></h3>
         <p>You need a state licence and acceptance by your harbour's "gang", and then you fish only its territory. Since 1995, elected zone councils have set their own trap limits, which the state legislature had failed to pass.</p>
-        <p class="meta">Principles 1, 7, 8 · <a href="https://dlc.dlib.indiana.edu/dlcrest/api/core/bitstreams/93b52c41-e0ae-4813-baf1-3ab4dfc64ff1/content">Acheson</a></p>
+        <p class="meta">Principles 1, 7, 8 · <a href="https://dlc.dlib.indiana.edu/dlcrest/api/core/bitstreams/93b52c41-e0ae-4813-baf1-3ab4dfc64ff1/content">Acheson c. 2001</a></p>
       </li>
       <li class="fail">
         <h3>Grand Banks, Canada <span>northern cod, collapsed 1992</span></h3>
-        <p>Not an unmanaged commons: Ottawa set the quotas. Its stock counts ran high, foreign fleets fished just outside the 200-mile line, and inshore fishers' warnings were discounted. The 1992 moratorium cost about 30,000 jobs. Commercial fishing reopened in 2024.</p>
-        <p class="meta">Missing 1, 2, 3 (my reading) · <a href="https://doi.org/10.1139/f94-214">Hutchings &amp; Myers 1994</a>; <a href="https://www.cbc.ca/news/canada/newfoundland-labrador/nl-northern-cod-fishery-2024-1.7246735">CBC 2024</a></p>
+        <p>Not an unmanaged commons: Ottawa set the quotas. Overfishing, not the environment, collapsed the stock. The 1992 moratorium cost about 30,000 jobs, and commercial fishing only reopened in 2024. Rules made far from the water can fail too.</p>
+        <p class="meta">State-run, not self-governed · <a href="https://doi.org/10.1139/f94-214">Hutchings &amp; Myers 1994</a>; <a href="https://www.cbc.ca/news/canada/newfoundland-labrador/nl-northern-cod-fishery-2024-1.7246735">CBC 2024</a></p>
       </li>
     </ol>
   </section>
@@ -434,7 +439,7 @@ let state = createState(Math.floor(Math.random() * 1e9));
 let playing = !reduced, speed = 1, progress = 0;
 let plan = null; // where each boat rows this season
 const flashes = []; // caught-cheating rings
-const log = [];
+let crashed = false; // the restock offer stays up from the first collapse until used
 const history = []; // one record per season, for the chart
 
 // ---------- controls ----------
@@ -449,15 +454,29 @@ PRINCIPLES.forEach((k, i) => {
   grid.append(label);
 });
 const inputs = [...grid.querySelectorAll("input")];
-inputs.forEach((el) => el.addEventListener("change", () => (sw[el.dataset.k] = el.checked)));
+// Any rule change makes the last 200-lake result describe other rules.
+const rulesChanged = () => $("trial-out").classList.add("stale");
+inputs.forEach((el) =>
+  el.addEventListener("change", () => {
+    sw[el.dataset.k] = el.checked;
+    say(`${COPY[el.dataset.k][0]} ${el.checked ? "on" : "off"}.`);
+    rulesChanged();
+  }),
+);
 const setAll = (on) => inputs.forEach((el) => (el.checked = sw[el.dataset.k] = on));
-document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => setAll(b.dataset.preset === "on")));
+document.querySelectorAll("[data-preset]").forEach((b) =>
+  b.addEventListener("click", () => {
+    const on = b.dataset.preset === "on";
+    setAll(on);
+    say(on ? "All eight principles on." : "All principles off. Anyone can fish.");
+    rulesChanged();
+  }),
+);
 
 const playBtn = $("play");
 const setPlaying = (p) => {
   playing = p;
   playBtn.textContent = p ? "Pause" : "Play";
-  playBtn.setAttribute("aria-pressed", String(!p));
   wake();
 };
 playBtn.addEventListener("click", () => setPlaying(!playing));
@@ -470,6 +489,7 @@ document.querySelectorAll("[data-speed]").forEach((b) =>
 );
 $("restock").addEventListener("click", () => {
   state = restock(state);
+  crashed = false;
   say("The lake is restocked. Your rules still stand.");
   syncDom();
 });
@@ -479,6 +499,7 @@ const TRIAL = { lakes: 200, seasons: 150, tail: 50, batch: 20 };
 $("trial").addEventListener("click", async ({ currentTarget: btn }) => {
   const rules = { ...sw }, out = $("trial-out");
   btn.disabled = true;
+  out.setAttribute("aria-busy", "true");
   let emptied = 0, haul = 0;
   for (let seed = 1; seed <= TRIAL.lakes; seed++) {
     let s = createState(seed), ever = false;
@@ -494,21 +515,27 @@ $("trial").addEventListener("click", async ({ currentTarget: btn }) => {
     }
   }
   const avg = Math.round(haul / TRIAL.lakes / TRIAL.tail);
-  out.innerHTML = `<strong>${emptied} of ${TRIAL.lakes}</strong> lakes emptied at least once in ${TRIAL.seasons} seasons. They settled at a catch of <strong>${avg} fish</strong> a season, of the 100 a healthy lake can sustain.`;
+  const n = PRINCIPLES.filter((k) => rules[k]).length;
+  out.innerHTML = `With ${n} of 8 principles: <strong>${emptied} of ${TRIAL.lakes}</strong> lakes emptied at least once in ${TRIAL.seasons} seasons. Over the last ${TRIAL.tail}, they averaged <strong>${avg} fish</strong> a season. A healthy lake sustains 100.`;
+  out.classList.remove("stale");
+  out.setAttribute("aria-busy", "false");
   btn.disabled = false;
 });
 
+// Prepends one line, so the log region announces only what's new.
+const LOG_LINES = 3;
 function say(text) {
-  log.unshift(`<b>${String(state.season).padStart(3, " ")}</b>${text}`);
-  log.length = Math.min(log.length, 3);
-  $("log").innerHTML = log.map((l) => `<li>${l}</li>`).join("");
+  const li = document.createElement("li");
+  li.innerHTML = `<b>${state.season}</b>${text}`;
+  $("log").prepend(li);
+  $("log").children[LOG_LINES]?.remove();
 }
 
 function narrate(prev, s) {
   for (const e of s.events) {
     if (e.type === "caught") say(`${NAMES[e.village]} fished over the limit. ${RUNG[e.rung] ?? FLAT[e.rung]}`);
-    if (e.type === "trawler") say("The capital licenses a trawler on your lake.");
-    if (e.type === "collapse") say("The lake is empty. The fish are gone.");
+    if (e.type === "trawler") say("The capital licenses a trawler to fish the lake.");
+    if (e.type === "collapse") say("The lake is fished out. Change the rules, then restock it.");
   }
   if (prev.collapsed && !s.collapsed) say("A few fish drift back in from upstream.");
   if (prev.outsiders < 1 && s.outsiders >= 1) say("Boats from outside start fishing here.");
@@ -524,7 +551,8 @@ function syncDom() {
   $("st-fish").textContent = fmt(state.S);
   $("st-catch").textContent = fmt(last?.catch ?? 0);
   $("st-trust").textContent = `${Math.round((100 * state.villages.reduce((a, v) => a + v.trust, 0)) / state.villages.length)}%`;
-  $("restock").hidden = !state.collapsed;
+  crashed ||= state.collapsed;
+  $("restock").hidden = !crashed;
 }
 
 // ---------- geometry ----------
@@ -738,10 +766,13 @@ function drawBoat(x, y, h, len, fill, light) {
   cx2.restore();
 }
 
+// Resolves a theme variable (which may be a color-mix()) to a computed colour canvas understands.
+const probe = document.body.appendChild(Object.assign(document.createElement("i"), { hidden: true }));
+const ink = (name) => ((probe.style.color = `var(${name})`), getComputedStyle(probe).color);
+
 const SPAN = 200;
 function drawChart() {
-  const css = getComputedStyle(document.documentElement);
-  const accent = css.getPropertyValue("--accent-c").trim(), mute = css.getPropertyValue("--mute").trim(), line = css.getPropertyValue("--line").trim();
+  const [accent, mute, line] = ["--accent-c", "--mute", "--line"].map(ink);
   const pad = { l: 34, r: 4, t: 6, b: 6 };
   const w = CW - pad.l - pad.r, h = CH - pad.t - pad.b;
   const X = (i) => pad.l + (i / (SPAN - 1)) * w, Y = (v) => pad.t + h * (1 - v / P.K0);

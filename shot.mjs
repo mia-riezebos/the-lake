@@ -32,7 +32,7 @@ await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setFocusEmulationEnabled", { enabled: true });
 await send("Emulation.setDeviceMetricsOverride", { width: +width, height: 1400, deviceScaleFactor: 1, mobile: false });
-await send("Page.navigate", { url: `file://${process.cwd()}/index.html` });
+await send("Page.navigate", { url: `file://${process.cwd()}/${process.env.PAGE ?? "index.html"}` });
 await sleep(800);
 if (js) {
   const r = await send("Runtime.evaluate", { expression: js, awaitPromise: true, returnByValue: true });
